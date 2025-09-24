@@ -31,7 +31,7 @@ README.md
 
 ## Requirements
 
-- **MATLAB** R2022b+ (R2023a/b recommended)
+- **MATLAB** R2022b+ (R2025a recommended)
 - **Toolboxes**
   - Satellite Communications Toolbox (`satelliteScenario`, `walkerStar`, `access`, `aer`, `states`)
   - Aerospace Toolbox (`lla2ecef`, etc.)
