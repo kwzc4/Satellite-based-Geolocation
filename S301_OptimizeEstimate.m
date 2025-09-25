@@ -1,6 +1,6 @@
 %% S301_Estimation
 function [EstimPos] = S301_OptimizeEstimate(Selector, sc, LeoSats, InitPos, ...
-                            Meas, Param, Const, Device, varargin)
+                           Meas, Param, Const, Device, varargin)
 % Unified estimator for RSS / TDoA / Doppler / AoA with joint weighted cost.
 
 % Selector = [useRSS useTDoA useDopp useAoA] (0/1 each)
@@ -148,35 +148,41 @@ EstimPos = [sol(1) sol(2) InitPos(3)];
 
 % ==================== Doppler: single or multi ====================
     function J = cost_doppler(LLA)
+        % Guard: no Doppler block present
         if ~isfield(Meas,'Doppler'), J = inf; return; end
-
-        % Build LOS & radial velocity for all sats/epochs
-        Nt = size(posSatAll,1); Ns = size(posSatAll,2);
-        r_dev = reshape(lla2ecef(LLA), 1,1,3);
-        r_dev = repmat(r_dev, Nt, Ns, 1);
-        LOS   = posSatAll - r_dev;
-        rngNm = sqrt(sum(LOS.^2,3));
-        uLOS  = LOS ./ max(rngNm, eps);
-        vr    = sum(velSatAll .* uLOS, 3);         % [Nt x Ns] m/s
-        fDmod = -(Param.f/Const.c) .* vr;          % Hz
-
-        % single-sat with global bias
-        satBest = Meas.Doppler.satBest;
-        mask    = Meas.Doppler.VisMaskG(:,satBest);
-        y       = Meas.Doppler.fD_single(mask);
-        s       = fDmod(mask, satBest);
-        if isempty(y), J = inf; return; end
-        b0 = mean(y - s);
-        r  = (s + b0) - y;
-        J  = sqrt(mean(r.^2));                 % Hz
+    
+        % Candidate device ECEF (1x3)
+        r_dev = lla2ecef([LLA(1), LLA(2), LLA(3)]).';
+        r_dev = r_dev(:).';                 % force row
+    
+        % LOS and radial velocity (single satellite over time)
+        % posSat, velSat: [Nt x 3]
+        LOS   = Meas.Doppler.posSat - r_dev;              % [Nt x 3]
+        rngNm = sqrt(sum(LOS.^2, 2));                     % [Nt x 1]
+        uLOS  = LOS ./ max(rngNm, eps);                   % [Nt x 3] (implicit expansion)
+        vr    = sum(Meas.Doppler.velSat .* uLOS, 2);      % [Nt x 1] m/s
+        fDmod = -(Param.f/Const.c) .* vr;                 % [Nt x 1] Hz
+    
+        % Visible + finite epochs (column mask)
+        viscol = Meas.Doppler.VisCol(:);                  % [Nt x 1] logical
+        y      = Meas.Doppler.fD;                         % [Nt x 1] Hz
+        msk    = viscol & isfinite(y) & isfinite(fDmod);  % [Nt x 1]
+        if ~any(msk), J = inf; return; end
+    
+        % Profile one global frequency bias
+        b0 = mean(y(msk) - fDmod(msk));
+        r  = (fDmod(msk) + b0) - y(msk);
+    
+        J = sqrt(mean(r.^2));                             % RMSE in Hz
     end
+
 
 % ==================== AoA at satellite ====================
     function J = cost_aoa(LLA)
         if ~isfield(Meas,'AoA'), J = inf; return; end
 
-        Az_meas = Meas.AoA.Az_sat;
-        El_meas = Meas.AoA.El_sat;
+        Az_meas = Meas.AoA.Az;
+        El_meas = Meas.AoA.El;
         VisS    = Meas.AoA.VisMaskS;
 
         gs_tmp = groundStation(sc,"Latitude",LLA(1),"Longitude",LLA(2),"Altitude",LLA(3));

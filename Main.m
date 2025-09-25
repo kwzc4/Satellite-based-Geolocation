@@ -8,8 +8,10 @@ S103_GeometryAndVisibility
 MeasAll =S201_Measurements( walker, Param, Device, Const, Nt, ELg, RHOg , VisMaskG, ...
     DevicePos, SatPos, SatVel, VisCol, AZs, ELs, VisMaskS);
 %% STEP 3 — Optimization and estimation
-Selector = [1 1 0 0];
+Selector = [0 0 0 1]; % [RSS / TDoA / Doppler / AoA]
 EstimPos = S301_OptimizeEstimate(Selector, sc, LeoSats, InitPos, ...
-                          MeasAll, Param, Const, Device,'Weights', [0.5 1 1 1]);
+                       MeasAll, Param, Const, Device,'Weights', [1 1 1 1]);
+fprintf('Estimated LLA: [%.6f, %.6f, %.1f m]\n', EstimPos(1), EstimPos(2), EstimPos(3));
+fprintf('True LLA:      [%.6f, %.6f, %.1f m]\n', DevicePos(1), DevicePos(2), DevicePos(3));
 %% STEP 4 — Plot
 S401_Plot;

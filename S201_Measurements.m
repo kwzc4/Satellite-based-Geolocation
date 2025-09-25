@@ -46,8 +46,14 @@ function [MeasAll] = S201_Measurements( walker, Param, Device, Const, Nt, ELg, R
     fD_true = -(Param.f/Const.c).*vr + Device.DoppBias;   % Hz
     
     % Simulated measurements (only at visible epochs)
-    Doppler_GT = NaN(Nt,1);
-    Doppler_GT(VisCol) = fD_true(VisCol) + Device.sigmaf*randn(nnz(VisCol),1);
+    fD_meas = NaN(Nt,1);
+    fD_meas(VisCol) = fD_true(VisCol) + Device.sigmaf*randn(nnz(VisCol),1);
+
+    Doppler_GT = struct( ...
+        'fD',     fD_meas, ...               % [Nt x 1] Hz (NaN when not visible)
+        'VisCol', VisCol(:), ...             % [Nt x 1] logical
+        'posSat', SatPos, ...                % [Nt x 3] ECEF
+        'velSat', SatVel );                  % [Nt x 3] ECEF
 
     % ---------- AoA at satellite (angles noisy, wrapped/clamped) ----------
     MeasAz = NaN(Nt, walker.LeoNum);
