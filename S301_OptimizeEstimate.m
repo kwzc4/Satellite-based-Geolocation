@@ -1,5 +1,5 @@
 %% S301_Estimation
-function [EstimPos] = S301_OptimizeEstimate(Selector, sc, LeoSats, InitPos, ...
+function [EstimPos] = S301_OptimizeEstimate(Selector, sc, LeoSats, InitPos, walker, ...
                            Meas, Param, Const, Device, varargin)
 % Unified estimator for RSS / TDoA / Doppler / AoA with joint weighted cost.
 
@@ -15,6 +15,8 @@ function [EstimPos] = S301_OptimizeEstimate(Selector, sc, LeoSats, InitPos, ...
 %
 % Name-Value:
 %   'Weights'            [wRSS wTDoA wDopp wAoA], default = ones(1,4)
+%   'UseSingleSatDoppler' logical, default true  (false => multi-sat Doppler)
+%   'FixAltitude'         logical, default true  (optimize lat/lon only)
 %   'Display'             'iter'|'off' for fminsearch
 %
 % Output:
@@ -23,9 +25,13 @@ function [EstimPos] = S301_OptimizeEstimate(Selector, sc, LeoSats, InitPos, ...
 % ---------- Parse options
 p = inputParser;
 p.addParameter('Weights', [1 1 1 1], @(x)isnumeric(x)&&numel(x)==4);
+p.addParameter('UseSingleSatDoppler', true, @(x)islogical(x)&&isscalar(x));
+p.addParameter('FixAltitude', true, @(x)islogical(x)&&isscalar(x));
 p.addParameter('Display','iter', @ischar);
 p.parse(varargin{:});
 W = p.Results.Weights(:).';
+useDoppSingle = p.Results.UseSingleSatDoppler;
+fixAlt        = p.Results.FixAltitude;
 dispMode      = p.Results.Display;
 
 useRSS   = logical(Selector(1));
@@ -33,13 +39,17 @@ useTDoA  = logical(Selector(2));
 useDOP   = logical(Selector(3));
 useAoA   = logical(Selector(4));
 
-
 % ---------- Optimizer
 opts = optimset('Display', dispMode);
 
 % Wrap the joint cost
-x0 = [InitPos(1), InitPos(2)];
-costFun = @(xy) joint_cost([xy(1) xy(2) InitPos(3)]);
+if fixAlt
+    x0 = [InitPos(1), InitPos(2)];
+    costFun = @(xy) joint_cost([xy(1) xy(2) InitPos(3)]);
+else
+    x0 = InitPos(:).';
+    costFun = @(lla) joint_cost(lla);
+end
 
 [sol] = fminsearch(costFun, x0, opts);
 EstimPos = [sol(1) sol(2) InitPos(3)];
@@ -151,29 +161,43 @@ EstimPos = [sol(1) sol(2) InitPos(3)];
         % Guard: no Doppler block present
         if ~isfield(Meas,'Doppler'), J = inf; return; end
     
-        % Candidate device ECEF (1x3)
-        r_dev = lla2ecef([LLA(1), LLA(2), LLA(3)]).';
-        r_dev = r_dev(:).';                 % force row
+        % Build LOS & radial velocity for all sats/epochs
+        r_dev = reshape(lla2ecef(LLA), 1,1,3);
+        r_dev = repmat(r_dev, Meas.Doppler.Nt, walker.LeoNum, 1);
     
         % LOS and radial velocity (single satellite over time)
         % posSat, velSat: [Nt x 3]
         LOS   = Meas.Doppler.posSat - r_dev;              % [Nt x 3]
-        rngNm = sqrt(sum(LOS.^2, 2));                     % [Nt x 1]
+        rngNm = sqrt(sum(LOS.^2, 3));                     % [Nt x 1]
         uLOS  = LOS ./ max(rngNm, eps);                   % [Nt x 3] (implicit expansion)
-        vr    = sum(Meas.Doppler.velSat .* uLOS, 2);      % [Nt x 1] m/s
+        vr    = sum(Meas.Doppler.velSat .* uLOS, 3);      % [Nt x LeoNum] m/s
         fDmod = -(Param.f/Const.c) .* vr;                 % [Nt x 1] Hz
-    
-        % Visible + finite epochs (column mask)
-        viscol = Meas.Doppler.VisCol(:);                  % [Nt x 1] logical
-        y      = Meas.Doppler.fD;                         % [Nt x 1] Hz
-        msk    = viscol & isfinite(y) & isfinite(fDmod);  % [Nt x 1]
-        if ~any(msk), J = inf; return; end
-    
-        % Profile one global frequency bias
-        b0 = mean(y(msk) - fDmod(msk));
-        r  = (fDmod(msk) + b0) - y(msk);
-    
-        J = sqrt(mean(r.^2));                             % RMSE in Hz
+        
+        if useDoppSingle
+            % single-sat with global bias
+            satBest = Meas.Doppler.satBest;
+            mask    = Meas.Doppler.VisMaskG(:,satBest);
+            y       = Meas.Doppler.fD_single(mask);
+            s       = fDmod(mask, satBest);
+            if isempty(y), J = inf; return; end
+            b0 = mean(y - s);
+            r  = (s + b0) - y;
+            J  = sqrt(mean(r.^2));                          % RMSE in Hz
+        else
+            % multi-sat with per-epoch bias
+            fDmeas = Meas.Doppler.fD_multi;
+            Vis    = Meas.Doppler.VisMaskG;
+            res_all = [];
+            for k=1:size(fDmeas,1)
+                idx = Vis(k,:) & isfinite(fDmeas(k,:));
+                if nnz(idx) < 2, continue; end
+                y = fDmeas(k, idx);
+                s = fDmod(k, idx);
+                b = mean(y - s);                    % per-epoch bias
+                res_all = [res_all, (s + b) - y]; %#ok<AGROW>
+            end
+            if isempty(res_all), J = inf; else, J = sqrt(mean(res_all.^2)); end % Hz
+        end
     end
 
 

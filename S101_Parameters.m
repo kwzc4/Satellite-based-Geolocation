@@ -22,6 +22,11 @@ walker.PhaseOffset = 8;            % Phase offset for phasing between planes
 walker.LeoNum = walker.NPlanes * walker.SatsPerPlane;
 Ref = 1;                           % Reference satellite
 minElDeg = 10;                     % small cutoff (tweak if needed)
+% add maximum nuber of satellites ==> 1 to inf (use all)
+% epoch length ==> see the satellite which has visibility every  for
+% example - divide the duration into number of epochs as an option in the
+% optimization
+% TDoA, 
 %% Radar parameters
 Param.f = 2e9;                     % 2 GHz uplink
 Param.muLoS = 0;

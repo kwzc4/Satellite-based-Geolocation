@@ -1,6 +1,6 @@
 %% S201_Measurements
-function [MeasAll] = S201_Measurements( walker, Param, Device, Const, Nt, ELg, RHOg , VisMaskG, ...
-    DevicePos, SatPos, SatVel, VisCol, AZs, ELs, VisMaskS)
+function [MeasAll] = S201_Measurements( LeoSats, walker, Param, Device, Const, Nt, ELg, RHOg , VisMaskG, ...
+    satIdx, DevicePos, SatPos, SatVel, VisCol, AZs, ELs, VisMaskS)
     
     % ---------- RSS (no reference; per-epoch offset profiled in estimator) ----------
     Lfs_true   = 20*log10(RHOg) + 20*log10(Param.f) - 147.55;   % [Nt x leoNum] dB
@@ -37,23 +37,35 @@ function [MeasAll] = S201_Measurements( walker, Param, Device, Const, Nt, ELg, R
     
     % ---------- Doppler (multi- and single-satellite) ----------
     DevicePos_true = lla2ecef(DevicePos);                     % 1 x 3 (ensure row)
-    DevicePos_true = DevicePos_true(:).';                         % force 1x3
-    
-    LOS   = SatPos - DevicePos_true;                          % Nt x 3 (implicit expansion)
-    rng   = sqrt(sum(LOS.^2,2));
-    uLOS  = LOS ./ rng;
-    vr    = sum(SatVel .* uLOS, 2);                       % Nt x 1  (m/s)
-    fD_true = -(Param.f/Const.c).*vr + Device.DoppBias;   % Hz
-    
-    % Simulated measurements (only at visible epochs)
-    fD_meas = NaN(Nt,1);
-    fD_meas(VisCol) = fD_true(VisCol) + Device.sigmaf*randn(nnz(VisCol),1);
+    [POS, VEL] = states(LeoSats, 'CoordinateFrame','ecef');  % 3 x Nt x Ns
+    posSat = permute(POS, [2 3 1]);                           % [Nt x Ns x 3]
+    velSat = permute(VEL, [2 3 1]);                           % [Nt x Ns x 3]
 
-    Doppler_GT = struct( ...
-        'fD',     fD_meas, ...               % [Nt x 1] Hz (NaN when not visible)
+    % Device ECEF repeated to match dims
+    r_dev = reshape(DevicePos_true, 1,1,3);
+    r_dev = repmat(r_dev, Nt, walker.LeoNum, 1);
+    LOS   = posSat - r_dev;                                   % [Nt x Ns x 3]
+    rngNm = sqrt(sum(LOS.^2, 3));                             % [Nt x Ns]
+    uLOS  = LOS ./ max(rngNm, eps);                           % unit LOS
+    vr    = sum(velSat .* uLOS, 3);                           % [Nt x Ns] m/s
+    bias  = 0; if isfield(Device,'DoppBias'), bias = Device.DoppBias; end
+    fD_true  = -(Param.f/Const.c).*vr + bias;                 % Hz
+    
+    % Multi-Sat
+    fD_multi = NaN(Nt, walker.LeoNum);
+    fD_multi(VisMaskG) = fD_true(VisMaskG) + Device.sigmaf*randn(nnz(VisMaskG),1);
+
+    % Choose single satellite with most visibility
+    fD_single = NaN(Nt,1);
+    fD_single(VisCol) = fD_multi(VisCol, satIdx)+ Device.sigmaf*randn(nnz(VisCol),1);
+
+
+    Doppler_GT = struct('fD_multi',fD_multi,'fD_single',fD_single,'Nt',Nt, ...
+        'satBest',satIdx, ...
+        'VisMaskG',VisMaskG,...
         'VisCol', VisCol(:), ...             % [Nt x 1] logical
-        'posSat', SatPos, ...                % [Nt x 3] ECEF
-        'velSat', SatVel );                  % [Nt x 3] ECEF
+        'posSat', posSat, ...                % [Nt x 3] ECEF
+        'velSat', velSat );                  % [Nt x 3] ECEF
 
     % ---------- AoA at satellite (angles noisy, wrapped/clamped) ----------
     MeasAz = NaN(Nt, walker.LeoNum);

@@ -1,7 +1,7 @@
 %% Geometry and visibilty calculation
 %% Find distance
 % Ground vantage (positive elevations): convenient for RSS/TDoA/Doppler masks
-[AZg, ELg, RHOg, ~] = aer(GSTrue, LeoSats);
+[AZg, ELg, RHOg, ~] = aer(GSTrue, LeoSats); % fix
 if size(ELg,1)==walker.LeoNum && size(ELg,2)~=walker.LeoNum
     AZg = AZg.'; ELg = ELg.'; RHOg = RHOg.';     % [Nt x LeoNum]
 end
@@ -29,7 +29,7 @@ for k = 1:Nt
         visIdx{k}      = idx_k;
     end
 end
-%% For Doppler — pick the satellite with the most visible epochs
+%% For Doppler — pick the satellite with the most visible samples
 nVisPerSat = sum(VisMaskG,1);
 [bestCount, satIdx] = max(nVisPerSat);
 fprintf('Chosen sat %d with %d visible epochs.\n', satIdx, bestCount);
