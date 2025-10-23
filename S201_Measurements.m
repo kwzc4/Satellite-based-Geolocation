@@ -1,6 +1,6 @@
 %% S201_Measurements
 function [MeasAll] = S201_Measurements( LeoSats, walker, Param, Device, Const, Nt, ELg, RHOg , VisMaskG, ...
-    satIdx, DevicePos, SatPos, SatVel, VisCol, AZs, ELs, VisMaskS)
+    satIdx, DevicePos, VisCol, AZs, ELs, VisMaskS)
     
     % ---------- RSS (no reference; per-epoch offset profiled in estimator) ----------
     Lfs_true   = 20*log10(RHOg) + 20*log10(Param.f) - 147.55;   % [Nt x leoNum] dB

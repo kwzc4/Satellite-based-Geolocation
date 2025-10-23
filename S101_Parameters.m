@@ -22,34 +22,32 @@ walker.PhaseOffset = 8;            % Phase offset for phasing between planes
 walker.LeoNum = walker.NPlanes * walker.SatsPerPlane;
 Ref = 1;                           % Reference satellite
 minElDeg = 10;                     % small cutoff (tweak if needed)
-% add maximum nuber of satellites ==> 1 to inf (use all)
-% epoch length ==> see the satellite which has visibility every  for
-% example - divide the duration into number of epochs as an option in the
-% optimization
-% TDoA, 
+% add maximum number of satellites ==> 1 to inf (use all)
+% epoch length ==> see the satellite which has visibility 
+% for example - divide the duration into number of epochs as an option in the optimization
 %% Radar parameters
 Param.f = 2e9;                     % 2 GHz uplink
-Param.muLoS = 0;
-Param.sigmaLoS = 2;
-Param.muNLoS = 10;
-Param.sigmaNLoS = 8;
+Param.muLoS = 0;                   % Mean of LOS
+Param.sigmaLoS = 2;                % Standard deviation of LOS
+Param.muNLoS = 10;                 % Mean of NLOS
+Param.sigmaNLoS = 8;               % Standard deviation of NLOS
 Param.beta = 0.3;                  % Urban environment constant, can vary 0.0-0.57
 Param.sigmaD = 10;                 % Doppler noise std deviation [Hz]
-Param.GRx = 6;                     % dBi
-%% Device Power Parameters
-Device.Number = 1;                    % single unknown device
-Device.muEIRP = 14;                    % Mean of RF Intensity
-Device.sigmaEIRP = 2;                  % Standard deviation of RF Intensity
-Device.sigmaT = 100e-9;                % Standard deviation of time
-Device.sigmaf = 2;                     % Standard deviation of Doppler frequency
-Device.sigmaRSS =2;                    % Standard deviation of RSS
-Device.sigmaAz = 1.0;                  % Standard deviation of azimuth error (degrees)
-Device.sigmaEl = 1.0;                  % Standard deviationf elevation error (degrees)
-Device.DoppBias = 20;                  % Hz, constant bias (for simulation)
+Param.GRx = 6;                     % Receiver gain dBi
+%% Device Parameters
+Device.Number = 1;                 % single unknown device
+Device.muEIRP = 14;                % Mean of RF Intensity
+Device.sigmaEIRP = 2;              % Standard deviation of RF Intensity
+Device.sigmaT = 100e-9;            % Standard deviation of time
+Device.sigmaf = 2;                 % Standard deviation of Doppler frequency
+Device.sigmaRSS =2;                % Standard deviation of RSS
+Device.sigmaAz = 1.0;              % Standard deviation of azimuth error (degrees)
+Device.sigmaEl = 1.0;              % Standard deviationf elevation error (degrees)
+Device.DoppBias = 0;               % Hz, constant bias (for simulation up tp 20)
 %% Device Position
-DeviceLat = -37.8136;
-DeviceLon = 144.9631;
-DeviceAlt = 0;
+DeviceLat = -37.8136;              % Device latitude
+DeviceLon = 144.9631;              % Device longitude
+DeviceAlt = 0;                     % Device altitude
 DevicePos = [DeviceLat, DeviceLon, DeviceAlt];
 latMin = DeviceLat - 2;
 latMax = DeviceLat + 2;
