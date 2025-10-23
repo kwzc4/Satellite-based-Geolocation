@@ -93,7 +93,3 @@ function [MeasAll] = S201_Measurements( LeoSats, walker, Param, Device, Const, N
     MeasAll.VisMaskS = AoA_GT.VisMaskS;
 
 end
-
-
-
-

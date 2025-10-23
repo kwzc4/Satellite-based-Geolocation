@@ -32,7 +32,6 @@ Param.sigmaLoS = 2;                % Standard deviation of LOS
 Param.muNLoS = 10;                 % Mean of NLOS
 Param.sigmaNLoS = 8;               % Standard deviation of NLOS
 Param.beta = 0.3;                  % Urban environment constant, can vary 0.0-0.57
-Param.sigmaD = 10;                 % Doppler noise std deviation [Hz]
 Param.GRx = 6;                     % Receiver gain dBi
 %% Device Parameters
 Device.Number = 1;                 % single unknown device
