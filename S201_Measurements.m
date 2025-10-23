@@ -3,11 +3,11 @@ function [MeasAll] = S201_Measurements( LeoSats, walker, Param, Device, Const, N
     satIdx, DevicePos, VisCol, AZs, ELs, VisMaskS)
     
     % ---------- RSS (no reference; per-epoch offset profiled in estimator) ----------
-    Lfs_true   = 20*log10(RHOg) + 20*log10(Param.f) - 147.55;   % [Nt x leoNum] dB
-    EIRP_true  = Device.muEIRP + Device.sigmaEIRP*randn();               % one constant (will be cancelled by K^k)
-    RSS_ideal  = EIRP_true - Lfs_true + Param.GRx;                 % [Nt x leoNum] dBm
-    RSS_GT   = NaN(Nt, walker.LeoNum);
-    RSS_GT(VisMaskG) = RSS_ideal(VisMaskG) + Device.sigmaRSS*randn(nnz(VisMaskG),1);
+    Lfs_true   = 20*log10(RHOg) + 20*log10(Param.f) - 147.55;       % Path loss [dB]
+    EIRP_true  = Device.muEIRP + Device.sigmaEIRP*randn();          % One random TX power [dBm] (will be cancelled by K^k in the optimizer)
+    RSS_GT  = EIRP_true - Lfs_true + Param.GRx;                     % Noise-free received power for each visible link (GT) [dBm]
+    RSS_Meas   = NaN(Nt, walker.LeoNum);
+    RSS_Meas(VisMaskG) = RSS_GT(VisMaskG) + Device.sigmaRSS*randn(nnz(VisMaskG),1); % Measurement power = power + measurement noise
     
     % ---------- TDoA (per-epoch reference = highest elevation) ----------
     TOA_true = RHOg ./ Const.c;                                    % s
@@ -85,7 +85,7 @@ function [MeasAll] = S201_Measurements( LeoSats, walker, Param, Device, Const, N
     AoA_GT = struct('Az',MeasAz,'El',MeasEl,'VisMaskS',VisMaskS);
 
     % Build the big measurement struct once (from your S201_Measurements)
-    MeasAll.RSS     = RSS_GT;            % [Nt x Ns] dBm (NaNs outside vis)
+    MeasAll.RSS     = RSS_Meas;            % [Nt x Ns] dBm (NaNs outside vis)
     MeasAll.TDoA    = TDoA_GT;           % struct with .TDOA, .TOA, .refPerEpoch, .VisMaskG
     MeasAll.Doppler = Doppler_GT;        % struct with .fD_multi, .fD_single, .satBest, .VisMaskG
     MeasAll.AoA     = AoA_GT;            % struct with .Az_sat, .El_sat, .VisMaskS

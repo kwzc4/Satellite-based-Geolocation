@@ -95,29 +95,34 @@ EstimPos = [sol(1) sol(2) InitPos(3)];
         if ~isfield(Meas,'RSS') || ~isfield(Meas,'VisMaskG')
             J = inf; return;
         end
-        RSS_meas = Meas.RSS;
-        VisMask  = Meas.VisMaskG;
-
-        gs_tmp = groundStation(sc,"Latitude",LLA(1),"Longitude",LLA(2),"Altitude",LLA(3));
-        [~, ~, rho_mod, ~] = aer(gs_tmp, LeoSats);
+        RSS_meas = Meas.RSS;            % Measured P_r (dBm) incl. noise; size [Nt x Ns]
+        VisMask  = Meas.VisMaskG;       % Visibility mask (ground vantage); logical [Nt x Ns]
+        % ---- Forward model: compute ranges to all sats from the trial LLA ----
+        gs_tmp = groundStation(sc,"Latitude",LLA(1),"Longitude",LLA(2),"Altitude",LLA(3));  % Create a temporary GS at trial position
+        [~, ~, rho_mod, ~] = aer(gs_tmp, LeoSats);  % Model slant ranges ρ(t,s) from trial GS to satellites
         delete(gs_tmp);
 
         Ns = numel(LeoSats);
         if size(rho_mod,1)==Ns && size(rho_mod,2)~=Ns, rho_mod = rho_mod.'; end
 
-        Lfs = 20*log10(rho_mod) + 20*log10(Param.f) - 147.55;
-        S   = -Lfs + Param.GRx;   % model up to K^k
+        % ---- Free-space path loss (FSPL) and geometry-only model term ----
+        Lfs = 20*log10(rho_mod) + 20*log10(Param.f) - 147.55;   % FSPL in dB for each (t,s)
+        S   = -Lfs + Param.GRx;                                 % Geometry term up to a per-epoch offset K^k
 
+        % ---- Accumulate residuals across all epochs/sats ----
         res_all = [];
         Nt = size(S,1);
         for k=1:Nt
-            idx = VisMask(k,:);
-            if nnz(idx) < 2, continue; end
-            m = RSS_meas(k,idx); s = S(k,idx);
+            idx = VisMask(k,:);         % Visible satellites at epoch k
+            if nnz(idx) < 2, continue; end  % Need ≥2 links to separate geometry from offset K^k
+            m = RSS_meas(k,idx);        % Measured P_r for visible sats at epoch k
+            s = S(k,idx);               % Modelled geometry term at epoch k
             good = isfinite(m) & isfinite(s);
             if any(good)
+                % --- Profile out per-epoch offset K^k via least squares (closed form = mean residual) ---
+                % Khat minimizes sum_s (m_s - (s_s + K))^2 over visible sats at epoch k
                 Khat = mean(m(good) - s(good));
-                res_all = [res_all, (s(good)+Khat) - m(good)]; %#ok<AGROW>
+                res_all = [res_all, (s(good)+Khat) - m(good)]; %#ok<AGROW>  % stack residuals across all epochs and satellites and compute
             end
         end
         if isempty(res_all), J = inf; else, J = sqrt(mean(res_all.^2)); end % dB

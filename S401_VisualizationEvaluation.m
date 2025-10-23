@@ -39,7 +39,7 @@ pT = lla2ecef([latT, lonT, altT]);   % [x y z] (m)
 pE = lla2ecef([latE, lonE, altE]);
 err3D_Km = norm(pE - pT)/1000;
 
-fprintf('Horizontal error: %.2f Km | Vertical error: %.2f Km | 3D error: %.2f Km\n', ...
+fprintf('Horizontal error: %.4f Km | Vertical error: %.4f Km | 3D error: %.4f Km\n', ...
         hErr_km, vErr_Km, err3D_Km);
 
 
