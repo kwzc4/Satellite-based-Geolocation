@@ -1,5 +1,5 @@
-%% S301_Estimation
-function [EstimPos] = S301_OptimizeEstimate(Selector, sc, LeoSats, InitPos, walker, ...
+%% S301_OptimizationEstimation
+function [EstimPos, OptPath] = S301_OptimizeEstimate(Selector, sc, LeoSats, InitPos, walker, ...
                            Meas, Param, Const, Device, varargin)
 % Unified estimator for RSS / TDoA / Doppler / AoA with joint weighted cost.
 
@@ -39,20 +39,24 @@ useTDoA  = logical(Selector(2));
 useDOP   = logical(Selector(3));
 useAoA   = logical(Selector(4));
 
+% ---------- Path capture container ----------
+OptPath.lat = []; OptPath.lon = []; OptPath.alt = []; OptPath.J = [];
+
 % ---------- Optimizer
-opts = optimset('Display', dispMode);
+opts = optimset('Display', dispMode, 'OutputFcn', @outfun);
 
 % Wrap the joint cost
 if fixAlt
     x0 = [InitPos(1), InitPos(2)];
     costFun = @(xy) joint_cost([xy(1) xy(2) InitPos(3)]);
+    [sol, ~] = fminsearch(costFun, x0, opts);
+    EstimPos = [sol(1) sol(2) InitPos(3)];
 else
     x0 = InitPos(:).';
     costFun = @(lla) joint_cost(lla);
+    [sol, ~] = fminsearch(costFun, x0, opts);
+    EstimPos = sol;
 end
-
-[sol] = fminsearch(costFun, x0, opts);
-EstimPos = [sol(1) sol(2) InitPos(3)];
 
 % ==================== Nested: joint cost ====================
     function J = joint_cost(LLA)
@@ -111,8 +115,8 @@ EstimPos = [sol(1) sol(2) InitPos(3)];
 
         % ---- Accumulate residuals across all epochs/sats ----
         res_all = [];
-        Nt = size(S,1);
-        for k=1:Nt
+        NtLocal = size(S,1);
+        for k=1:NtLocal
             idx = VisMask(k,:);         % Visible satellites at epoch k
             if nnz(idx) < 2, continue; end  % Need ≥2 links to separate geometry from offset K^k
             m = RSS_meas(k,idx);        % Measured P_r for visible sats at epoch k
@@ -146,8 +150,7 @@ EstimPos = [sol(1) sol(2) InitPos(3)];
         TOA_mod = rho_mod ./ Const.c;
 
         res_all = [];
-        Nt = size(TDOA,1);
-        for k=1:Nt
+        for k=1:size(TDOA,1)
             r = refPE(k);
             if isnan(r), continue; end
             idx = VisG(k,:);
@@ -236,6 +239,27 @@ EstimPos = [sol(1) sol(2) InitPos(3)];
             r = [az_res(:); el_res(:)];
         end
         J = sqrt(mean(r.^2));                         % degrees (normalized if sigmas given)
+    end
+
+% ---------- OutputFcn to capture optimizer path ----------
+    function stop = outfun(x, optimValues, state)
+        stop = false;  % never stop early here
+        if strcmp(state,'iter')
+            if fixAlt
+                lat = x(1); lon = x(2); alt = InitPos(3);
+            else
+                lat = x(1); lon = x(2); alt = x(3);
+            end
+            OptPath.lat(end+1) = lat;
+            OptPath.lon(end+1) = lon;
+            OptPath.alt(end+1) = alt;
+            if isfield(optimValues,'fval')
+                OptPath.J(end+1)   = optimValues.fval;
+            else
+                % As a fallback, evaluate once (rarely needed)
+                OptPath.J(end+1) = joint_cost([lat,lon,alt]);
+            end
+        end
     end
 
 end 
