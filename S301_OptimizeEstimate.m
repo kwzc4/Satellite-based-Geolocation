@@ -66,10 +66,14 @@ end
         if ~any(sel)
             J = inf; return;
         end
+        % Per-modality reference scales (set to your 1-sigma expectations)
+        Sref = [max(Device.sigmaRSS,eps), ...   % dB
+                max(Device.sigmaT,  eps), ...   % s
+                max(Device.sigmaf,  eps), ...   % Hz
+                1];                             % AoA already noise-normalized → use 1
+        q = parts(sel) ./ Sref(sel);            % noise-normalized costs
         w = W(sel);
-        q = parts(sel);
-        % Weighted RMS of selected parts
-        J = sqrt( sum( (w .* (q.^2)) ) / sum(w) );
+        J = sqrt( sum( w .* (q.^2) ) / sum(w) );
     end
 
 % ==================== Nested: per-modality costs ====================

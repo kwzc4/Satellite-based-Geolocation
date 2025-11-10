@@ -16,7 +16,7 @@ ax.LongitudeAxis.TickValues = [];
 ax.LatitudeAxis.Label.String  = 'Latitude ^\circ';
 ax.LongitudeAxis.Label.String = 'Longitude ^\circ';
 ax.Box = 'on';
-
+ax.Grid="on";
 drawnow;                          % let geoaxes compute its limits
 latlim = ax.LatitudeLimits;       % freeze them
 lonlim = ax.LongitudeLimits;
